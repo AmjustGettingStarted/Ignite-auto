@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, Calendar, Camera, Car, Shield } from "lucide-react";
+import Image from "next/image";
 import {
   cubicBezier,
   motion,
@@ -25,11 +25,11 @@ const ENTER = [
 ];
 
 const SETTLED = [
-  { x: -560, y: 70, r: -7 },
-  { x: -280, y: 25, r: -3.5 },
+  { x: -510, y: 65, r: -7 },
+  { x: -255, y: 22, r: -3.5 },
   { x: 0, y: 0, r: 0 },
-  { x: 280, y: 25, r: 3.5 },
-  { x: 560, y: 70, r: 7 },
+  { x: 255, y: 22, r: 3.5 },
+  { x: 510, y: 65, r: 7 },
 ];
 
 const EXIT_X = [-14, -7, 0, 7, 14];
@@ -37,29 +37,35 @@ const EXIT_R = [-4, -2, 0, 2, 4];
 
 const CARDS = [
   {
+    number: "01",
     title: "Wide Selection",
-    copy: "Filter this dealership’s stock by make, body style, price, and mileage.",
-    icon: Car,
+    copy: "Filter this dealership's stock by make, body style, price, and mileage.",
+    image: "/why/wide-selection.webp",
   },
   {
+    number: "02",
     title: "Easy Test Drive",
     copy: "Book a slot on a car that is actually on the lot, without calling the floor.",
-    icon: Calendar,
+    image: "/why/easy-test-drive.webp",
   },
   {
+    number: "03",
     title: "Secure Process",
-    copy: "Reservations stay on your account, and the car’s status updates from the desk.",
-    icon: Shield,
+    copy: "Reservations stay on your account, and the car's status updates from the desk.",
+    image: "/why/secure-process.webp",
+    featured: true,
   },
   {
+    number: "04",
     title: "AI Image Search",
-    copy: "Upload a photo and match it to cars in this dealership’s inventory.",
-    icon: Camera,
+    copy: "Upload a photo and match it to cars in this dealership's inventory.",
+    image: "/why/ai-image-search.webp",
   },
   {
+    number: "05",
     title: "Verified Dealer Inventory",
     copy: "Every listing is stock this dealership holds, with price and photos from the floor.",
-    icon: BadgeCheck,
+    image: "/why/verified-dealer-inventory.webp",
   },
 ];
 
@@ -117,9 +123,9 @@ function useStageFit() {
 
   useEffect(() => {
     const measure = () => {
-      // 560px offset + 150px half card + rotation slack, kept 40px inside the viewport.
-      const room = window.innerWidth / 2 - 40;
-      fit.set(Math.min(1, Math.max(0.45, room / 738)));
+      // 510px offset + 136px half card + rotation slack, kept 32px inside the viewport.
+      const room = window.innerWidth / 2 - 32;
+      fit.set(Math.min(1, Math.max(0.42, room / 675)));
       exitY.set(window.innerHeight * 0.36);
     };
 
@@ -132,29 +138,56 @@ function useStageFit() {
 }
 
 function CardFace({ card, index, line, idle = false }) {
-  const Icon = card.icon;
-  const number = String(index + 1).padStart(2, "0");
+  const number = card.number || String(index + 1).padStart(2, "0");
 
   return (
-    <div className={`${idle ? "why-idle " : ""}relative h-full w-full`}>
-      <Icon
-        className="pointer-events-none absolute -bottom-6 -right-6 h-44 w-44 text-white/[0.04]"
-        strokeWidth={1}
-        aria-hidden="true"
-      />
-      <div className="relative flex h-full flex-col p-7">
-        <span className="font-display text-[64px] leading-none text-white/15">{number}</span>
-        <span className="mt-4 flex h-[72px] w-[72px] items-center justify-center rounded-full border border-[#ff4d1a]/55 shadow-[0_0_28px_rgba(255,77,26,0.45)]">
-          <Icon className="h-14 w-14 text-[#ff4d1a]" strokeWidth={1.5} aria-hidden="true" />
-        </span>
-        <h3 className="mt-5 font-display text-[28px] leading-[1.05] text-white">{card.title}</h3>
-        <p className="mt-3 text-[15px] leading-snug text-white/75">{card.copy}</p>
-        <div className="mt-auto h-[2px] w-full bg-white/10">
-          {line ? (
-            <motion.div style={{ scaleX: line }} className="h-full origin-left bg-[#ff4d1a]" />
-          ) : (
-            <div className="h-full bg-[#ff4d1a]" />
-          )}
+    <div
+      className={`${
+        idle ? "why-idle " : ""
+      }relative flex h-full w-full flex-col justify-between overflow-hidden bg-[#0c0c0e] select-none`}
+    >
+      {/* Top Number */}
+      <span className="absolute left-6 top-5 z-20 font-sans text-[22px] font-normal tracking-tight text-white/90">
+        {number}
+      </span>
+
+      {/* Visual Artwork Container */}
+      <div className="relative h-[210px] w-full overflow-hidden">
+        <Image
+          src={card.image}
+          alt={card.title}
+          fill
+          sizes="300px"
+          className="pointer-events-none object-cover object-center"
+          priority
+        />
+        {/* Soft bottom vignette into card body */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#0c0c0e] to-transparent" />
+      </div>
+
+      {/* Content Area */}
+      <div className="relative z-10 flex flex-1 flex-col justify-between px-6 pb-6 pt-1">
+        <div>
+          <h3 className="font-sans text-[22px] font-medium leading-[1.18] tracking-tight text-white">
+            {card.title}
+          </h3>
+          <p className="mt-2 text-[13.5px] font-normal leading-[1.55] text-zinc-400">
+            {card.copy}
+          </p>
+        </div>
+
+        {/* Bottom Accent Bar */}
+        <div className="mt-4">
+          <div className="h-[2.5px] w-10 overflow-hidden rounded-full">
+            {line ? (
+              <motion.div
+                style={{ scaleX: line }}
+                className="h-full w-full origin-left bg-gradient-to-r from-[#ff551f] via-[#ff551f]/90 to-transparent"
+              />
+            ) : (
+              <div className="h-full w-full bg-gradient-to-r from-[#ff551f] via-[#ff551f]/90 to-transparent" />
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -164,10 +197,12 @@ function CardFace({ card, index, line, idle = false }) {
 function SectionTitle({ id }) {
   return (
     <>
-      <p className="mb-3 text-xs uppercase tracking-[0.3em] text-[#ff4d1a]">Why {BRAND_NAME}</p>
+      <p className="mb-3 text-[13px] font-medium uppercase tracking-[0.28em] text-[#ff4d1a]">
+        Why {BRAND_NAME}
+      </p>
       <h2
         id={id}
-        className="font-display text-[clamp(2.5rem,6vw,5rem)] leading-[0.95] text-white"
+        className="font-sans text-[clamp(2.5rem,5.5vw,4.5rem)] font-normal leading-[1.02] tracking-tight text-white"
       >
         Built around the drive.
       </h2>
@@ -184,10 +219,16 @@ function ScatterCard({ card, index, progress, fit, exitY }) {
   const line = useTransform([progress, fit, exitY], ([p, f, ey]) => pose(p, index, f, ey).line);
   const zIndex = useTransform([progress, fit, exitY], ([p, f, ey]) => pose(p, index, f, ey).z);
 
+  const isFeatured = card.featured;
+
   return (
     <motion.article
       style={{ x, y, rotate, scale, opacity, zIndex }}
-      className="absolute left-1/2 top-1/2 h-[400px] w-[300px] -ml-[150px] -mt-[200px] overflow-hidden rounded-3xl border border-white/12 bg-[linear-gradient(160deg,#18181b,#0b0b0c)] shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]"
+      className={`absolute left-1/2 top-1/2 h-[425px] w-[272px] -ml-[136px] -mt-[212.5px] overflow-hidden rounded-[22px] transition-[box-shadow,border-color] duration-300 ${
+        isFeatured
+          ? "border-[1.5px] border-[#ff551f] shadow-[0_0_30px_rgba(255,85,31,0.35),0_20px_45px_rgba(0,0,0,0.85)]"
+          : "border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.08),0_18px_36px_rgba(0,0,0,0.7)]"
+      }`}
     >
       <CardFace card={card} index={index} line={line} idle />
     </motion.article>
@@ -213,10 +254,18 @@ function PinnedWhy() {
       <div className="sticky top-0 h-svh overflow-hidden">
         <motion.div
           style={{ opacity: titleOpacity, y: titleY }}
-          className="pointer-events-none absolute inset-x-0 top-[10%] z-30 px-6 text-center"
+          className="pointer-events-none absolute inset-x-0 top-[9%] z-30 px-6 text-center"
         >
           <SectionTitle id="why-choose-pinned" />
         </motion.div>
+
+        {/* Ambient floor glow under Card 03 */}
+        <motion.div
+          style={{ opacity: titleOpacity }}
+          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-[215px] z-10 h-[120px] w-[360px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,85,31,0.48)_0%,rgba(255,85,31,0.18)_42%,transparent_72%)] blur-2xl"
+          aria-hidden="true"
+        />
+
         {CARDS.map((card, index) => (
           <ScatterCard
             key={card.title}
@@ -240,18 +289,22 @@ function StackedWhy() {
       aria-labelledby="why-choose-stack"
       className="relative z-20 rounded-t-[2.5rem] bg-[#050505] px-4 py-20 md:motion-safe:hidden"
     >
-      <div className="mx-auto mb-10 max-w-3xl text-center">
+      <div className="mx-auto mb-12 max-w-3xl text-center">
         <SectionTitle id="why-choose-stack" />
       </div>
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-[340px] flex-col gap-6">
         {CARDS.map((card, index) => (
           <motion.article
             key={card.title}
-            initial={reduce ? false : { opacity: 0, y: 72 }}
+            initial={reduce ? false : { opacity: 0, y: 48 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
-            transition={{ duration: 0.7, delay: index * 0.05, ease: EASE }}
-            className="relative h-[400px] w-full overflow-hidden rounded-3xl border border-white/12 bg-[linear-gradient(160deg,#18181b,#0b0b0c)] shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]"
+            transition={{ duration: 0.6, delay: index * 0.05, ease: EASE }}
+            className={`relative h-[425px] w-full overflow-hidden rounded-[22px] ${
+              card.featured
+                ? "border-[1.5px] border-[#ff551f] shadow-[0_0_30px_rgba(255,85,31,0.35),0_20px_45px_rgba(0,0,0,0.85)]"
+                : "border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.08),0_18px_36px_rgba(0,0,0,0.7)]"
+            }`}
           >
             <CardFace card={card} index={index} />
           </motion.article>
