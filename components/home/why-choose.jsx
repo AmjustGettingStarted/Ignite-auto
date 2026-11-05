@@ -144,7 +144,7 @@ function CardFace({ card, index, line, idle = false }) {
     <div
       className={`${
         idle ? "why-idle " : ""
-      }relative flex h-full w-full flex-col justify-between overflow-hidden bg-[#0c0c0e] select-none`}
+      }relative flex h-full w-full flex-col justify-between overflow-hidden bg-[#0c0c0e] select-none [backface-visibility:hidden] [transform:translateZ(0)] antialiased`}
     >
       {/* Top Number */}
       <span className="absolute left-6 top-5 z-20 font-sans text-[22px] font-normal tracking-tight text-white/90">
@@ -157,7 +157,9 @@ function CardFace({ card, index, line, idle = false }) {
           src={card.image}
           alt={card.title}
           fill
-          sizes="300px"
+          sizes="(min-width: 768px) 560px, 320px"
+          quality={90}
+          decoding="async"
           className="pointer-events-none object-cover object-center"
           priority
         />
@@ -223,8 +225,18 @@ function ScatterCard({ card, index, progress, fit, exitY }) {
 
   return (
     <motion.article
-      style={{ x, y, rotate, scale, opacity, zIndex }}
-      className={`absolute left-1/2 top-1/2 h-[425px] w-[272px] -ml-[136px] -mt-[212.5px] overflow-hidden rounded-[22px] transition-[box-shadow,border-color] duration-300 ${
+      style={{
+        x,
+        y,
+        rotate,
+        scale,
+        opacity,
+        zIndex,
+        backfaceVisibility: "hidden",
+        WebkitBackfaceVisibility: "hidden",
+        WebkitFontSmoothing: "antialiased",
+      }}
+      className={`absolute left-1/2 top-1/2 h-[425px] w-[272px] -ml-[136px] -mt-[212.5px] overflow-hidden rounded-[22px] transition-[box-shadow,border-color] duration-300 [backface-visibility:hidden] [transform:translateZ(0)] antialiased ${
         isFeatured
           ? "border-[1.5px] border-[#ff551f] shadow-[0_0_30px_rgba(255,85,31,0.35),0_20px_45px_rgba(0,0,0,0.85)]"
           : "border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.08),0_18px_36px_rgba(0,0,0,0.7)]"

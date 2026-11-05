@@ -47,6 +47,8 @@ export default function HomeCta() {
           alt=""
           fill
           sizes="100vw"
+          quality={90}
+          decoding="async"
           className="object-cover object-center"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/45" />

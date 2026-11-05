@@ -2,6 +2,7 @@
 
 import React, { Suspense, useState, useMemo } from "react";
 import Image from "next/image";
+import CarImage from "@/components/car-image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, ArrowUpRight } from "lucide-react";
@@ -66,26 +67,25 @@ function BrandCard({ make, isSelected, clone = false }) {
     >
       {/* Full-bleed authentic automotive photography with unified cinematic grading */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <Image
+        <CarImage
           src={imageUrl}
-          alt={`${make.name} automotive showcase`}
-          fill
-          sizes="(min-width: 1024px) 330px, 300px"
-          className={`object-cover object-center filter saturate-[0.8] contrast-[1.12] transition-all duration-500 ease-out group-hover:scale-105 ${
+          alt=""
+          sizes="(min-width: 1024px) 640px, 400px"
+          quality={90}
+          loading={clone ? "lazy" : "eager"}
+          priority={!clone}
+          className={`object-cover object-center transition-all duration-500 ease-out group-hover:scale-105 ${
             isSelected
-              ? "brightness-[0.82]"
-              : "brightness-[0.70] group-hover:brightness-[0.82]"
+              ? "brightness-[0.88]"
+              : "brightness-[0.78] group-hover:brightness-[0.88]"
           }`}
         />
 
-        {/* Cinematic dark film overlay */}
-        <div className="absolute inset-0 bg-black/25" />
-
         {/* Center vignette ensuring high contrast behind the logo */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.45)_0%,rgba(0,0,0,0.78)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.35)_0%,rgba(0,0,0,0.65)_100%)]" />
 
         {/* Subtle bottom gradient for visual grounding */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
 
         {/* Delicate top-edge specular line */}
         <div className="absolute inset-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]" />
@@ -98,9 +98,12 @@ function BrandCard({ make, isSelected, clone = false }) {
             src={logoUrl}
             alt={clone ? "" : `${make.name} logo`}
             fill
-            sizes="(min-width: 1024px) 200px, 160px"
+            sizes="(min-width: 1024px) 384px, 320px"
+            quality={90}
+            priority={!clone}
+            loading={!clone ? "eager" : "lazy"}
+            decoding="async"
             className="object-contain filter drop-shadow-[0_4px_16px_rgba(0,0,0,0.95)] transition-transform duration-300 group-hover:scale-105"
-            priority={!clone && (make.name === "Rolls-Royce" || make.name === "Lamborghini")}
           />
         </div>
       </div>

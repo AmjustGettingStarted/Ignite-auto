@@ -221,6 +221,8 @@ const TestDriveForm = ({ car, testDriveInfo }) => {
                   alt={`${car.year} ${car.make} ${car.model}`}
                   fill
                   sizes="(min-width: 768px) 30vw, 100vw"
+                  quality={90}
+                  decoding="async"
                   className="object-cover"
                 />
               ) : (

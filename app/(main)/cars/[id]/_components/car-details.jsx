@@ -62,7 +62,10 @@ function CarGallery({ car, currentImageIndex, setCurrentImageIndex }) {
               src={image}
               alt={`${car.year} ${car.make} ${car.model}`}
               fill
-              sizes="(min-width: 1024px) 58vw, 100vw"
+              sizes="(min-width: 1024px) 75vw, 120vw"
+              quality={90}
+              priority
+              decoding="async"
               className="object-cover"
             />
           </motion.div>
@@ -92,6 +95,8 @@ function CarGallery({ car, currentImageIndex, setCurrentImageIndex }) {
                 alt=""
                 fill
                 sizes="96px"
+                quality={85}
+                decoding="async"
                 className="object-cover"
               />
             </button>
