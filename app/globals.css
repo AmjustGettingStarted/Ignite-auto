@@ -148,6 +148,35 @@ html.lenis body {
   display: none;
 }
 
+/* Custom bright orange vertical scrollbar */
+html {
+  scrollbar-color: #ff4d1a #0b0b0c;
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b0b0c;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ff4d1a;
+  border-radius: 9999px;
+  border: 2px solid #0b0b0c;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ff6a3d;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: #ff3800;
+}
+
+
 @keyframes body-glow {
   from {
     opacity: 0.8;
