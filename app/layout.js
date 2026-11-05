@@ -20,7 +20,7 @@ const trento = localFont({
 });
 
 export const metadata = {
-  title: `${BRAND_NAME.toUpperCase()} | AI-Powered High-Performance Marketplace`,
+  title: `${BRAND_NAME.toUpperCase()}`,
   description: `Browse verified dealership inventory, search by photo, and book test drives with ${BRAND_NAME}.`,
   icons: {
     icon: "/favicon.ico",
