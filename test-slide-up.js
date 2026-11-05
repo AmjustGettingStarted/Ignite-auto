@@ -13,7 +13,53 @@ const { chromium } = require("playwright");
   const page = await context.newPage();
   await page.goto("http://localhost:3001", { waitUntil: "networkidle" });
 
-  // 1. Scroll to where CTA is first pinned at top: 0
+  // Test scroll sequence from FAQ into CTA
+  const ctaOffset = await page.evaluate(() => {
+    const el = document.querySelector("#cta");
+    return el.getBoundingClientRect().top + window.scrollY;
+  });
+
+  console.log("CTA offset top:", ctaOffset);
+
+  // 1. Scroll to inside FAQ (before CTA starts entering)
+  await page.evaluate((top) => {
+    window.scrollTo({ top: top - 1200, behavior: "instant" });
+  }, ctaOffset);
+  await page.waitForTimeout(600);
+
+  const beforeCta = await page.evaluate(() => {
+    const c = document.querySelector("#cta");
+    const content = c?.querySelector("div.flex-col");
+    const style = content ? window.getComputedStyle(content) : null;
+    return {
+      scrollY: window.scrollY,
+      ctaTop: c?.getBoundingClientRect().top,
+      contentOpacity: style?.opacity,
+      contentTransform: style?.transform,
+    };
+  });
+  console.log("1. Inside FAQ (before CTA enters):", beforeCta);
+
+  // 2. Scroll to CTA entering 30% into viewport
+  await page.evaluate((top) => {
+    window.scrollTo({ top: top - 600, behavior: "instant" });
+  }, ctaOffset);
+  await page.waitForTimeout(600);
+
+  const enteringCta = await page.evaluate(() => {
+    const c = document.querySelector("#cta");
+    const content = c?.querySelector("div.flex-col");
+    const style = content ? window.getComputedStyle(content) : null;
+    return {
+      scrollY: window.scrollY,
+      ctaTop: c?.getBoundingClientRect().top,
+      contentOpacity: style?.opacity,
+      contentTransform: style?.transform,
+    };
+  });
+  console.log("2. CTA entering (revealing):", enteringCta);
+
+  // 3. Scroll to where CTA is first pinned at top: 0
   await page.evaluate(() => {
     const el = document.querySelector("#cta");
     el.scrollIntoView({ behavior: "instant", block: "start" });

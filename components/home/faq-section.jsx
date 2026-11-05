@@ -102,7 +102,7 @@ export default function FaqSection() {
       id="faq"
       ref={sectionRef}
       aria-labelledby="faq-title"
-      className="relative z-20 overflow-hidden rounded-b-[32px] border-b border-white/10 bg-black md:rounded-b-[56px]"
+      className="relative z-20 overflow-x-clip rounded-b-[32px] border-b border-white/10 bg-black md:rounded-b-[56px]"
     >
       {/* L0: Background Glow Blobs */}
       <div className="pointer-events-none absolute inset-0 -z-20 overflow-hidden" aria-hidden="true">

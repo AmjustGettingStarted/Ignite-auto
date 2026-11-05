@@ -26,30 +26,56 @@ function MakeMarquee() {
 }
 
 export default function HomeCta({ children }) {
+  const containerRef = useRef(null);
   const footerRef = useRef(null);
   const reduce = useReducedMotion();
 
-  // Track the scroll progress of the footer entering and reaching its resting point
+  // Track scroll progress across the entire multi-phase choreography:
+  // 1. FAQ scrolls up (0.0 -> 0.34): Unveils the pinned hero car photo in place (content opacity: 0)
+  // 2. Further scroll (0.34 -> 0.52): CTA content reveals smoothly (opacity 0 -> 1, y 40 -> 0)
+  // 3. Dwell (0.52 -> 0.70): CTA content remains fully visible and interactive
+  // 4. Scroll again (0.70 -> 0.85): CTA content fades out, slightly scales and shifts upward
+  // 5. Footer appears (0.83 -> 1.0): Natural-height footer pulls up cleanly over the pinned background
   const { scrollYProgress } = useScroll({
-    target: footerRef,
-    offset: ["start end", "end end"],
+    target: containerRef,
+    offset: ["start start", "end end"],
   });
 
-  // Fade, slightly scale, and translate CTA text/buttons upward as the footer slides in
-  const ctaOpacity = useTransform(scrollYProgress, (v) => Math.max(0, 1 - v / 0.6));
-  const ctaScale = useTransform(scrollYProgress, (v) => 1 - Math.min(1, v / 0.6) * 0.05);
-  const ctaY = useTransform(scrollYProgress, (v) => -Math.min(1, v / 0.6) * 40);
-  const pointerEvents = useTransform(scrollYProgress, (v) => (v >= 0.6 ? "none" : "auto"));
+  const ctaOpacity = useTransform(
+    scrollYProgress,
+    [0, 0.34, 0.52, 0.70, 0.85],
+    [0, 0, 1, 1, 0]
+  );
+
+  const ctaY = useTransform(
+    scrollYProgress,
+    [0, 0.34, 0.52, 0.70, 0.85],
+    [40, 40, 0, 0, -40]
+  );
+
+  const ctaScale = useTransform(
+    scrollYProgress,
+    [0, 0.34, 0.52, 0.70, 0.85],
+    [0.95, 0.95, 1, 1, 0.95]
+  );
+
+  const pointerEvents = useTransform(
+    scrollYProgress,
+    (v) => (v >= 0.48 && v <= 0.73 ? "auto" : "none")
+  );
 
   return (
-    <>
-      {/* Stationary Anchor CTA Section */}
+    <div
+      ref={containerRef}
+      className="relative z-10 -mt-[100vh] w-full"
+    >
+      {/* Stationary Anchor CTA Section: pinned at top: 0 behind FAQ */}
       <section
         id="cta"
         aria-labelledby="cta-title"
         className="sticky top-0 z-0 h-screen w-full overflow-hidden bg-black"
       >
-        {/* Background photo remains visible */}
+        {/* Background photo: always present at top: 0, unveiled as FAQ lifts like a curtain */}
         <div className="absolute inset-0">
           <Image
             src="/hero-last-frame.jpg"
@@ -63,7 +89,7 @@ export default function HomeCta({ children }) {
           <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/45" />
         </div>
 
-        {/* CTA Content: Heading, buttons, marquee fade out cleanly as the footer pulls up */}
+        {/* CTA Content: Revealed upon further scroll, dwells, then fades out */}
         <motion.div
           style={
             reduce
@@ -110,14 +136,17 @@ export default function HomeCta({ children }) {
         </motion.div>
       </section>
 
-      {/* Footer Container & Sheet Overlay */}
+      {/* Scroll track spacer: allows FAQ lift, content reveal, dwell, and fade */}
+      <div className="h-[240vh] pointer-events-none" aria-hidden="true" />
+
+      {/* Footer Container & Sheet Overlay: slides up naturally over the pinned CTA */}
       <section
         id="footer"
         ref={footerRef}
-        className="relative z-10 w-full h-auto bg-black rounded-t-3xl border-t border-white/10 shadow-2xl overflow-hidden"
+        className="relative z-20 w-full h-auto bg-black rounded-t-3xl border-t border-white/10 shadow-2xl overflow-hidden"
       >
         {children || <SiteFooter className="border-0 bg-transparent rounded-none shadow-none" />}
       </section>
-    </>
+    </div>
   );
 }
