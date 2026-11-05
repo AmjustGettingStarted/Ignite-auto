@@ -35,6 +35,10 @@ const SETTLED = [
 const EXIT_X = [-14, -7, 0, 7, 14];
 const EXIT_R = [-4, -2, 0, 2, 4];
 
+// Fraction of the exit window the cards spend travelling down.
+// The remaining part they sit stacked while the section finishes scrolling away.
+const EXIT_TRAVEL = 0.8;
+
 const CARDS = [
   {
     number: "01",
@@ -83,18 +87,37 @@ function lerp(from, to, amount) {
   return from + (to - from) * amount;
 }
 
-function pose(progress, index, fit, exitY) {
-  const enterStart = 0.05 + index * 0.07;
-  const enterEnd = enterStart + 0.17;
-  const enterT = segment(progress, enterStart, enterEnd);
-  const exitT = segment(progress, 0.7, 0.95);
+/**
+ * Splits the raw scroll progress (0 -> 1 over the whole section, ending when the
+ * section has fully left the top of the viewport) into two phases:
+ *  - pinned: 0 -> 1 while the stage is stuck to the viewport (cards fly in and settle)
+ *  - exit:   0 -> 1 while the stage is already scrolling up (cards fall + section leaves)
+ * `unpin` is the raw progress at which the sticky stage lets go.
+ */
+function phases(progress, unpin) {
+  const u = Math.min(0.99, Math.max(0.01, unpin));
+  return {
+    pinned: clamp01(progress / u),
+    exit: clamp01((progress - u) / (1 - u)),
+  };
+}
+
+function pose(progress, index, fit, exitY, unpin) {
+  const { pinned, exit } = phases(progress, unpin);
+
+  // Enter timings are relative to the pinned phase only.
+  const enterStart = 0.06 + index * 0.1;
+  const enterEnd = enterStart + 0.24;
+  const enterT = segment(pinned, enterStart, enterEnd);
+
   const from = ENTER[index];
   const settled = SETTLED[index];
   const x = settled.x * fit;
   const y = settled.y;
   const rotation = settled.r;
 
-  if (progress >= 0.7) {
+  if (exit > 0) {
+    const exitT = segment(exit, 0, EXIT_TRAVEL);
     return {
       x: lerp(x, EXIT_X[index], exitT),
       y: lerp(y, exitY, exitT),
@@ -112,29 +135,38 @@ function pose(progress, index, fit, exitY) {
     r: lerp(from.r, rotation, enterT),
     scale: lerp(fit * 0.6, fit, enterT),
     opacity: enterT,
-    line: segment(progress, enterEnd - 0.05, enterEnd + 0.04),
+    line: segment(pinned, enterEnd - 0.05, enterEnd + 0.04),
     z: 20 - Math.abs(index - 2),
   };
 }
 
-function useStageFit() {
+function useStageFit(sectionRef) {
   const fit = useMotionValue(1);
   const exitY = useMotionValue(360);
+  const unpin = useMotionValue(0.7);
 
   useEffect(() => {
     const measure = () => {
       // 510px offset + 136px half card + rotation slack, kept 32px inside the viewport.
       const room = window.innerWidth / 2 - 32;
       fit.set(Math.min(1, Math.max(0.42, room / 675)));
-      exitY.set(window.innerHeight * 0.36);
+      // How far the cards fall inside the stage (stack lands near the stage bottom).
+      exitY.set(window.innerHeight * 0.38);
+
+      // The sticky stage lets go when the scroll distance reaches (sectionHeight - viewport).
+      // With the scroll range ending when the section fully leaves, that is a fraction of:
+      const el = sectionRef.current;
+      if (el && el.offsetHeight > 0) {
+        unpin.set((el.offsetHeight - window.innerHeight) / el.offsetHeight);
+      }
     };
 
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [fit, exitY]);
+  }, [fit, exitY, unpin, sectionRef]);
 
-  return { fit, exitY };
+  return { fit, exitY, unpin };
 }
 
 function CardFace({ card, index, line, idle = false }) {
@@ -142,9 +174,8 @@ function CardFace({ card, index, line, idle = false }) {
 
   return (
     <div
-      className={`${
-        idle ? "why-idle " : ""
-      }relative flex h-full w-full flex-col justify-between overflow-hidden bg-[#0c0c0e] select-none [backface-visibility:hidden] [transform:translateZ(0)] antialiased`}
+      className={`${idle ? "why-idle " : ""
+        }relative flex h-full w-full flex-col justify-between overflow-hidden bg-[#0c0c0e] select-none [backface-visibility:hidden] [transform:translateZ(0)] antialiased`}
     >
       {/* Top Number */}
       <span className="absolute left-6 top-5 z-20 font-sans text-[22px] font-normal tracking-tight text-white/90">
@@ -212,14 +243,15 @@ function SectionTitle({ id }) {
   );
 }
 
-function ScatterCard({ card, index, progress, fit, exitY }) {
-  const x = useTransform([progress, fit, exitY], ([p, f, ey]) => pose(p, index, f, ey).x);
-  const y = useTransform([progress, fit, exitY], ([p, f, ey]) => pose(p, index, f, ey).y);
-  const rotate = useTransform([progress, fit, exitY], ([p, f, ey]) => pose(p, index, f, ey).r);
-  const scale = useTransform([progress, fit, exitY], ([p, f, ey]) => pose(p, index, f, ey).scale);
-  const opacity = useTransform([progress, fit, exitY], ([p, f, ey]) => pose(p, index, f, ey).opacity);
-  const line = useTransform([progress, fit, exitY], ([p, f, ey]) => pose(p, index, f, ey).line);
-  const zIndex = useTransform([progress, fit, exitY], ([p, f, ey]) => pose(p, index, f, ey).z);
+function ScatterCard({ card, index, progress, fit, exitY, unpin }) {
+  const deps = [progress, fit, exitY, unpin];
+  const x = useTransform(deps, ([p, f, ey, u]) => pose(p, index, f, ey, u).x);
+  const y = useTransform(deps, ([p, f, ey, u]) => pose(p, index, f, ey, u).y);
+  const rotate = useTransform(deps, ([p, f, ey, u]) => pose(p, index, f, ey, u).r);
+  const scale = useTransform(deps, ([p, f, ey, u]) => pose(p, index, f, ey, u).scale);
+  const opacity = useTransform(deps, ([p, f, ey, u]) => pose(p, index, f, ey, u).opacity);
+  const line = useTransform(deps, ([p, f, ey, u]) => pose(p, index, f, ey, u).line);
+  const zIndex = useTransform(deps, ([p, f, ey, u]) => pose(p, index, f, ey, u).z);
 
   const isFeatured = card.featured;
 
@@ -236,11 +268,10 @@ function ScatterCard({ card, index, progress, fit, exitY }) {
         WebkitBackfaceVisibility: "hidden",
         WebkitFontSmoothing: "antialiased",
       }}
-      className={`absolute left-1/2 top-1/2 h-[425px] w-[272px] -ml-[136px] -mt-[212.5px] overflow-hidden rounded-[22px] transition-[box-shadow,border-color] duration-300 [backface-visibility:hidden] [transform:translateZ(0)] antialiased ${
-        isFeatured
+      className={`absolute left-1/2 top-1/2 h-[425px] w-[272px] -ml-[136px] -mt-[212.5px] overflow-hidden rounded-[22px] transition-[box-shadow,border-color] duration-300 [backface-visibility:hidden] [transform:translateZ(0)] antialiased ${isFeatured
           ? "border-[1.5px] border-[#ff551f] shadow-[0_0_30px_rgba(255,85,31,0.35),0_20px_45px_rgba(0,0,0,0.85)]"
           : "border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.08),0_18px_36px_rgba(0,0,0,0.7)]"
-      }`}
+        }`}
     >
       <CardFace card={card} index={index} line={line} idle />
     </motion.article>
@@ -249,13 +280,23 @@ function ScatterCard({ card, index, progress, fit, exitY }) {
 
 function PinnedWhy() {
   const ref = useRef(null);
+  // "end start": progress runs until the section has completely left the viewport,
+  // so the exit can overlap with the stage scrolling up.
   const { scrollYProgress } = useScroll({
     target: ref,
-    offset: ["start start", "end end"],
+    offset: ["start start", "end start"],
   });
-  const { fit, exitY } = useStageFit();
-  const titleOpacity = useTransform(scrollYProgress, [0, 0.15, 0.72, 0.85], [1, 1, 1, 0]);
-  const titleY = useTransform(scrollYProgress, [0, 0.15, 0.72, 0.85], [24, 0, 0, -36]);
+  const { fit, exitY, unpin } = useStageFit(ref);
+
+  // Title: slides in at the start of the pinned phase, fades early in the exit.
+  const titleOpacity = useTransform([scrollYProgress, unpin], ([p, u]) => {
+    const { exit } = phases(p, u);
+    return 1 - clamp01(exit / 0.35);
+  });
+  const titleY = useTransform([scrollYProgress, unpin], ([p, u]) => {
+    const { pinned, exit } = phases(p, u);
+    return lerp(24, 0, clamp01(pinned / 0.12)) - 30 * clamp01(exit / 0.35);
+  });
 
   return (
     <section
@@ -286,6 +327,7 @@ function PinnedWhy() {
             progress={scrollYProgress}
             fit={fit}
             exitY={exitY}
+            unpin={unpin}
           />
         ))}
       </div>
@@ -312,11 +354,10 @@ function StackedWhy() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ duration: 0.6, delay: index * 0.05, ease: EASE }}
-            className={`relative h-[425px] w-full overflow-hidden rounded-[22px] ${
-              card.featured
+            className={`relative h-[425px] w-full overflow-hidden rounded-[22px] ${card.featured
                 ? "border-[1.5px] border-[#ff551f] shadow-[0_0_30px_rgba(255,85,31,0.35),0_20px_45px_rgba(0,0,0,0.85)]"
                 : "border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.08),0_18px_36px_rgba(0,0,0,0.7)]"
-            }`}
+              }`}
           >
             <CardFace card={card} index={index} />
           </motion.article>

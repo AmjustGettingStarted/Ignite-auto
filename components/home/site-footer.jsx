@@ -29,8 +29,8 @@ export default function SiteFooter({ className }) {
   return (
     <footer
       className={cn(
-        "relative z-20 border-t border-white/10 bg-[#050505] px-5 pt-24 pb-10 sm:px-10",
-        className,
+        "relative z-20 border-t border-white/10 bg-[#050505] px-5 pt-16 pb-10 sm:px-10 md:pt-20",
+        className
       )}
     >
       <p className="max-w-full font-display text-[clamp(3.5rem,14vw,12rem)] uppercase leading-[0.8] text-white">

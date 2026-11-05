@@ -70,12 +70,6 @@ export default async function Home() {
         <BodyCoverflow types={withCounts(bodyTypeCounts)} />
         <FaqSection />
         <HomeCta />
-        <section
-          id="footer"
-          className="relative z-20 -mt-[100svh] min-h-svh overflow-hidden rounded-t-[2.5rem] border-t border-white/10 bg-[#050505]"
-        >
-          <SiteFooter className="border-0 bg-transparent" />
-        </section>
       </div>
     </div>
   );
