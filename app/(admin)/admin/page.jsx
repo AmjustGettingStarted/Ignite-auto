@@ -17,13 +17,7 @@ const AdminPage = async () => {
   ]);
 
   return (
-    <div className="p-4 md:p-6">
-      <p className="mb-2 font-[family-name:var(--font-label)] text-[10px] uppercase tracking-[0.35em] text-[#ff4d1a]">
-        Overview
-      </p>
-      <h1 className="mb-6 font-[family-name:var(--font-clash)] text-3xl font-semibold uppercase tracking-tight sm:text-4xl">
-        Dashboard
-      </h1>
+    <div className="mx-auto max-w-[1440px]">
       <Dashboard initialData={dashboardData} analytics={analytics} drives={drives} />
     </div>
   );

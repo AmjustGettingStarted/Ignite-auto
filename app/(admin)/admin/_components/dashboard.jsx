@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { motion } from "framer-motion";
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
   Pie,
@@ -13,53 +13,24 @@ import {
   PolarAngleAxis,
   RadialBar,
   RadialBarChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { Calendar, Car, DollarSign, TrendingUp } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+  GlassCard,
+  Metric,
+  SegmentedControl,
+  StatusChip,
+  AdminChartTooltip,
+} from "./admin-primitives";
 
-const RANGES = [7, 30, 90];
-const CHART_COLORS = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-  "var(--chart-6)",
+const RANGES = [
+  { label: "7d", value: 7 },
+  { label: "30d", value: 30 },
+  { label: "90d", value: 90 },
 ];
-
-const STATUS_COLOR = {
-  AVAILABLE: "var(--chart-4)",
-  UNAVAILABLE: "var(--chart-5)",
-  SOLD: "var(--chart-2)",
-  PENDING: "var(--chart-5)",
-  CONFIRMED: "var(--chart-4)",
-  COMPLETED: "var(--chart-2)",
-  CANCELLED: "var(--chart-1)",
-  NO_SHOW: "var(--chart-6)",
-};
-
-const DRIVE_CONFIG = {
-  booked: { label: "Booked", color: "var(--chart-2)" },
-  completed: { label: "Completed", color: "var(--chart-3)" },
-};
 
 function pct(part, total) {
   if (!total) return "0.0";
@@ -67,7 +38,9 @@ function pct(part, total) {
 }
 
 function sumWindow(series, key, start, length) {
-  return series.slice(start, start + length).reduce((total, row) => total + (row[key] || 0), 0);
+  return series
+    .slice(start, start + length)
+    .reduce((total, row) => total + (row[key] || 0), 0);
 }
 
 function displayedConversion(testDrives) {
@@ -77,110 +50,91 @@ function displayedConversion(testDrives) {
   return Math.min(100, Math.max(0, raw));
 }
 
-function CountUp({ value, decimals = 0, suffix = "" }) {
-  const [shown, setShown] = useState(0);
-
-  useEffect(() => {
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const start = performance.now();
-    let frame = 0;
-    const tick = (now) => {
-      if (reduce) {
-        setShown(value);
-        return;
-      }
-      const progress = Math.min(1, (now - start) / 900);
-      const eased = 1 - (1 - progress) ** 3;
-      setShown(value * eased);
-      if (progress < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [value]);
-
-  return (
-    <>
-      {shown.toFixed(decimals)}
-      {suffix}
-    </>
-  );
-}
-
-function Sparkline({ data, dataKey, color }) {
-  const config = { [dataKey]: { label: dataKey, color } };
-  return (
-    <ChartContainer config={config} className="aspect-auto h-[60px] w-[108px]">
-      <AreaChart data={data}>
-        <Area
-          dataKey={dataKey}
-          stroke={color}
-          fill={color}
-          fillOpacity={0.25}
-          strokeWidth={1.5}
-          dot={false}
-          isAnimationActive={false}
-        />
-      </AreaChart>
-    </ChartContainer>
-  );
-}
-
-function SparkSlot({ data, dataKey, color, label }) {
-  return (
-    <div className="flex flex-col items-end">
-      {data?.length ? (
-        <div className="h-[60px] w-[108px]" aria-hidden>
-          <Sparkline data={data} dataKey={dataKey} color={color} />
-        </div>
-      ) : (
-        <div className="flex h-[60px] w-[108px] items-center justify-end text-lg text-white/70" aria-hidden>
-          —
-        </div>
-      )}
-      {label ? (
-        <span className="text-[10px] uppercase tracking-[0.14em] text-white/70">{label}</span>
-      ) : null}
-    </div>
-  );
-}
-
-function Delta({ current, previous }) {
-  if (previous == null || current == null) {
-    return (
-      <Badge variant="outline" className="border-white/20 text-white/70">
-        —
-      </Badge>
-    );
+function formatDate(isoString) {
+  try {
+    const d = new Date(isoString);
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return isoString?.slice(0, 10) || "—";
   }
-  const change = previous === 0 ? (current > 0 ? 100 : 0) : Math.round(((current - previous) / previous) * 100);
-  const up = change >= 0;
+}
+
+function getInitials(name) {
+  if (!name) return "U";
+  const parts = name.trim().split(" ");
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
+/**
+ * Clean Delta Text
+ * Shows plain colored text only when non-zero.
+ * At 0% or no history, shows muted "No change" or nothing.
+ */
+function DeltaMetric({ current, previous }) {
+  if (previous == null || current == null) {
+    return null;
+  }
+  const change =
+    previous === 0
+      ? current > 0
+        ? 100
+        : 0
+      : Math.round(((current - previous) / previous) * 100);
+
+  if (change === 0) {
+    return <span className="text-xs text-[#6B625C]">No change</span>;
+  }
+
+  const up = change > 0;
   return (
-    <Badge
-      variant="outline"
-      className={
-        up
-          ? "border-emerald-400/40 text-emerald-300"
-          : "border-rose-400/40 text-rose-300"
-      }
+    <span
+      className={`text-xs font-medium font-sans tabular-nums ${
+        up ? "text-[#4ADE80]" : "text-[#F87171]"
+      }`}
     >
       {up ? "+" : ""}
       {change}% vs prior 7d
-    </Badge>
+    </span>
   );
 }
 
-function EmptyChart({ title }) {
-  const showSeed = process.env.NODE_ENV !== "production";
+/**
+ * Calm Empty Chart State
+ */
+function EmptyChartState({ title, subtitle, onAction, actionLabel }) {
   return (
-    <div className="flex h-[260px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 bg-white/[0.03] px-6 text-center">
-      <p className="font-display text-sm uppercase tracking-[0.18em] text-white">{title}</p>
-      {showSeed ? (
-        <p className="max-w-sm text-sm text-white/70">
-          In development, run <span className="text-[#ff4d1a]">npm run seed:demo</span> to load sample bookings.
-        </p>
-      ) : (
-        <p className="max-w-sm text-sm text-white/70">Nothing to chart in this range.</p>
-      )}
+    <div className="flex h-[260px] flex-col items-center justify-center gap-2.5 rounded-2xl border border-white/[0.05] bg-white/[0.01] px-6 text-center">
+      {/* Subtle baseline chart placeholder curve */}
+      <svg
+        className="h-10 w-44 text-white/[0.08]"
+        viewBox="0 0 176 40"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      >
+        <path d="M0 32 C 40 32, 60 20, 90 24 C 120 28, 140 12, 176 16" />
+      </svg>
+      <p className="text-sm font-medium text-[#F5F1EE]">{title}</p>
+      {subtitle ? (
+        <p className="max-w-xs text-xs text-[#A39A94]">{subtitle}</p>
+      ) : null}
+
+      {onAction && actionLabel ? (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-2 cursor-pointer rounded-full border border-white/[0.08] bg-white/[0.04] px-3.5 py-1 text-xs font-medium text-[#F5F1EE] hover:bg-white/[0.08] transition-colors"
+        >
+          {actionLabel}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -192,6 +146,7 @@ export function Dashboard({ initialData, analytics, drives }) {
   const failed = !initialData?.success;
   const cars = initialData?.data?.cars;
   const testDrives = initialData?.data?.testDrives;
+
   const series = useMemo(
     () => (analytics?.success ? analytics.data.series : []),
     [analytics]
@@ -201,395 +156,836 @@ export function Dashboard({ initialData, analytics, drives }) {
     [drives]
   );
 
-  const windowed = useMemo(() => driveSeries.slice(-range), [driveSeries, range]);
-  const carSpark = series.slice(-7);
-  const driveSpark = driveSeries.slice(-7);
-  const bookingsNow = sumWindow(driveSeries, "booked", Math.max(driveSeries.length - 7, 0), 7);
-  const bookingsPrev = sumWindow(driveSeries, "booked", Math.max(driveSeries.length - 14, 0), 7);
-  const carsNow = sumWindow(series, "cars", Math.max(series.length - 7, 0), 7);
-  const carsPrev = sumWindow(series, "cars", Math.max(series.length - 14, 0), 7);
+  const windowed = useMemo(
+    () => driveSeries.slice(-range),
+    [driveSeries, range]
+  );
+  const bookingsNow = sumWindow(
+    driveSeries,
+    "booked",
+    Math.max(driveSeries.length - 7, 0),
+    7
+  );
+  const bookingsPrev = sumWindow(
+    driveSeries,
+    "booked",
+    Math.max(driveSeries.length - 14, 0),
+    7
+  );
+  const carsNow = sumWindow(
+    series,
+    "cars",
+    Math.max(series.length - 7, 0),
+    7
+  );
+  const carsPrev = sumWindow(
+    series,
+    "cars",
+    Math.max(series.length - 14, 0),
+    7
+  );
   const conversion = displayedConversion(testDrives);
 
-  const barData = (analytics?.success ? analytics.data.byMake : []).slice(0, 8).map((row, index) => ({
-    ...row,
-    fill: CHART_COLORS[index % CHART_COLORS.length],
-  }));
-  const statusData = (analytics?.data?.byStatus || []).map((row) => ({
-    name: row.name,
-    value: row.count,
-    fill: STATUS_COLOR[row.name] || "var(--chart-3)",
-  }));
+  // Horizontal sorted by Make data with single hue opacity ramp
+  const barData = useMemo(() => {
+    const raw = (analytics?.success ? analytics.data.byMake : [])
+      .slice(0, 8)
+      .sort((a, b) => b.count - a.count);
+    const maxCount = Math.max(...raw.map((r) => r.count), 1);
+    return raw.map((item, idx) => ({
+      ...item,
+      percentage: Math.round((item.count / maxCount) * 100),
+      // Single hue opacity ramp
+      opacity: Math.max(1 - idx * 0.1, 0.35),
+    }));
+  }, [analytics]);
+
+  // Inventory Status donut with semantic palette
+  const statusData = useMemo(() => {
+    const palette = {
+      AVAILABLE: { color: "#4ADE80", label: "Available" },
+      SOLD: { color: "#60A5FA", label: "Sold" },
+      UNAVAILABLE: { color: "#F5A524", label: "Unavailable" },
+    };
+    return (analytics?.data?.byStatus || []).map((row) => ({
+      name: row.name,
+      label: palette[row.name]?.label || row.name,
+      value: row.count,
+      color: palette[row.name]?.color || "#A39A94",
+    }));
+  }, [analytics]);
+
   const utilization = cars?.total
-    ? Math.round((((cars.sold || 0) + (cars.unavailable || 0)) / cars.total) * 100)
+    ? Math.round(
+        (((cars.sold || 0) + (cars.unavailable || 0)) / cars.total) * 100
+      )
     : 0;
-  const drivesEmpty = windowed.length === 0 || windowed.every((row) => row.booked === 0 && row.completed === 0);
+
+  const drivesEmpty =
+    windowed.length === 0 ||
+    windowed.every((row) => row.booked === 0 && row.completed === 0);
 
   if (failed) {
     return (
-      <Card className="border-white/10 bg-[#0b0b0c] text-white">
-        <CardHeader>
-          <CardTitle>Dashboard unavailable</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-white/70">
-          {initialData?.error || "Failed to load dashboard data"}
-        </CardContent>
-      </Card>
+      <GlassCard className="max-w-md mx-auto text-center py-10">
+        <h2 className="text-lg font-semibold text-[#F5F1EE]">
+          Dashboard unavailable
+        </h2>
+        <p className="mt-2 text-sm text-[#A39A94]">
+          {initialData?.error || "Failed to load showroom data."}
+        </p>
+      </GlassCard>
     );
   }
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-      <TabsList className="bg-[#111113]">
-        <TabsTrigger value="overview" className="cursor-pointer data-[state=active]:bg-[#0b0b0c] data-[state=active]:text-white">
-          Overview
-        </TabsTrigger>
-        <TabsTrigger value="test-drives" className="cursor-pointer data-[state=active]:bg-[#0b0b0c] data-[state=active]:text-white">
-          Test Drives
-        </TabsTrigger>
-      </TabsList>
+    <div className="space-y-7">
+      {/* Page Title: ONE line, ONE style, tight tracking + Segmented Tab Control */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-[32px] font-semibold leading-[38px] tracking-[-0.02em] text-[#F5F1EE]">
+            Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-[#A39A94]">
+            Showroom performance at a glance
+          </p>
+        </div>
 
-      <TabsContent value="overview" className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          <KpiCard
-            className="lg:col-span-3"
-            title="Total Cars"
-            icon={Car}
-            value={<CountUp value={cars.total} />}
-            note={`${cars.available} available, ${cars.sold} sold`}
-            delta={<Delta current={analytics?.success ? carsNow : null} previous={analytics?.success ? carsPrev : null} />}
-            spark={<SparkSlot data={carSpark} dataKey="cars" color="var(--chart-1)" label="Added" />}
-          />
-          <KpiCard
-            className="lg:col-span-3"
-            title="Test Drives"
-            icon={Calendar}
-            value={<CountUp value={testDrives.total} />}
-            note={`${testDrives.pending} pending, ${testDrives.confirmed} confirmed`}
-            delta={<Delta current={drives?.success ? bookingsNow : null} previous={drives?.success ? bookingsPrev : null} />}
-            spark={<SparkSlot data={driveSpark} dataKey="booked" color="var(--chart-2)" label="Booked" />}
-          />
-          <KpiCard
-            className="lg:col-span-3"
-            title="Conversion Rate"
-            icon={TrendingUp}
-            value={
-              conversion == null ? (
-                "—"
-              ) : (
-                <CountUp value={conversion} decimals={1} suffix="%" />
-              )
-            }
-            note="Sold cars with a completed drive, divided by completed drives"
-            delta={<Delta current={null} previous={null} />}
-            spark={<SparkSlot data={driveSpark} dataKey="completed" color="var(--chart-3)" label="Completed" />}
-          />
-          <KpiCard
-            className="lg:col-span-3"
-            title="Cars Sold"
-            icon={DollarSign}
-            value={<CountUp value={cars.sold} />}
-            note={`${pct(cars.sold, cars.total)}% of inventory`}
-            delta={<Delta current={null} previous={null} />}
-            spark={<SparkSlot label="No history" />}
-          />
+        {/* Overview vs Test Drives View Selector */}
+        <SegmentedControl
+          items={[
+            { label: "Overview", value: "overview" },
+            { label: "Test Drives", value: "test-drives" },
+          ]}
+          value={activeTab}
+          onChange={setActiveTab}
+        />
+      </div>
 
-          <Card className="border-white/10 bg-[#0b0b0c] text-white lg:col-span-8">
-            <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle className="font-display uppercase tracking-tight">Test drives over time</CardTitle>
-                <CardDescription className="text-white/70">
-                  Booked by created day. Completed by booking date — there is no completion timestamp.
-                </CardDescription>
-              </div>
-              <ToggleGroup
-                type="single"
-                value={String(range)}
-                onValueChange={(value) => {
-                  if (value) setRange(Number(value));
-                }}
-                variant="outline"
-                size="sm"
-                aria-label="Chart range"
-              >
-                {RANGES.map((days) => (
-                  <ToggleGroupItem
-                    key={days}
-                    value={String(days)}
-                    aria-label={`${days} days`}
-                    className="cursor-pointer text-white data-[state=on]:bg-[#ff4d1a] data-[state=on]:text-white"
-                  >
-                    {days}d
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-            </CardHeader>
-            <CardContent>
-              {drivesEmpty ? (
-                <EmptyChart title="No bookings in this range" />
-              ) : (
-                <ChartContainer config={DRIVE_CONFIG} className="aspect-auto h-[280px] w-full">
-                  <AreaChart data={windowed}>
-                    <defs>
-                      <linearGradient id="bookedFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.55} />
-                        <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0.02} />
-                      </linearGradient>
-                      <linearGradient id="completedFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--chart-3)" stopOpacity={0.5} />
-                        <stop offset="100%" stopColor="var(--chart-3)" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="date" tickLine={false} axisLine={false} minTickGap={28} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Area
-                      dataKey="booked"
-                      stroke="var(--chart-2)"
-                      fill="url(#bookedFill)"
-                      strokeWidth={2}
-                      style={{ filter: "drop-shadow(0 0 8px rgba(59,130,246,0.65))" }}
-                    />
-                    <Area
-                      dataKey="completed"
-                      stroke="var(--chart-3)"
-                      fill="url(#completedFill)"
-                      strokeWidth={2}
-                      style={{ filter: "drop-shadow(0 0 8px rgba(139,92,246,0.65))" }}
-                    />
-                  </AreaChart>
-                </ChartContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-white/10 bg-[#0b0b0c] text-white lg:col-span-4">
-            <CardHeader>
-              <CardTitle className="font-display uppercase tracking-tight">Inventory status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {statusData.length === 0 || statusData.every((row) => row.value === 0) ? (
-                <EmptyChart title="No cars to chart" />
-              ) : (
-                <div className="relative">
-                  <ChartContainer
-                    config={{
-                      AVAILABLE: { label: "Available", color: "var(--chart-4)" },
-                      UNAVAILABLE: { label: "Unavailable", color: "var(--chart-5)" },
-                      SOLD: { label: "Sold", color: "var(--chart-2)" },
-                    }}
-                    className="mx-auto aspect-square h-[260px]"
-                  >
-                    <PieChart>
-                      <ChartTooltip content={<ChartTooltipContent hideLabel />} />
-                      <Pie
-                        data={statusData}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={68}
-                        outerRadius={96}
-                        paddingAngle={3}
-                        stroke="transparent"
-                      >
-                        {statusData.map((row) => (
-                          <Cell key={row.name} fill={row.fill} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ChartContainer>
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="font-display text-4xl font-semibold text-white">{cars.total}</span>
-                    <span className="text-xs text-white/70">cars</span>
-                  </div>
+      {/* Main Tab Views */}
+      {activeTab === "overview" ? (
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={{
+            hidden: { opacity: 0 },
+            visible: {
+              opacity: 1,
+              transition: { staggerChildren: 0.04 },
+            },
+          }}
+          className="space-y-5"
+        >
+          {/* ROW 1: FOUR KPI CARDS (NO ICONS!) */}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Total Cars */}
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 12 },
+                visible: {
+                  opacity: 1,
+                  y: 0,
+                  transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+                },
+              }}
+            >
+              <GlassCard className="flex flex-col justify-between h-full">
+                <div>
+                  <p className="text-sm font-medium text-[#A39A94]">
+                    Total Cars
+                  </p>
+                  <p className="mt-2 text-[46px] sm:text-[48px] font-semibold leading-none tracking-tight text-[#F5F1EE]">
+                    <Metric value={cars.total} />
+                  </p>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-white/10 bg-[#0b0b0c] text-white lg:col-span-5">
-            <CardHeader>
-              <CardTitle className="font-display uppercase tracking-tight">Inventory by make</CardTitle>
-              <CardDescription className="text-white/70">Top 8 makes</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {barData.length === 0 ? (
-                <EmptyChart title="No cars in inventory" />
-              ) : (
-                <ChartContainer
-                  config={{ count: { label: "Cars", color: "var(--chart-1)" } }}
-                  className="aspect-auto h-[260px] w-full"
-                >
-                  <BarChart data={barData}>
-                    <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="name" tickLine={false} axisLine={false} interval={0} angle={-25} height={64} />
-                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={28} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                      {barData.map((row) => (
-                        <Cell key={row.name} fill={row.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ChartContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-white/10 bg-[#0b0b0c] text-white lg:col-span-3">
-            <CardHeader>
-              <CardTitle className="font-display uppercase tracking-tight">Utilization</CardTitle>
-            </CardHeader>
-            <CardContent className="relative">
-              {cars.total === 0 ? (
-                <EmptyChart title="No inventory yet" />
-              ) : (
-                <>
-                  <ChartContainer
-                    config={{ utilization: { label: "In use", color: "var(--chart-4)" } }}
-                    className="mx-auto aspect-square h-[260px]"
-                  >
-                    <RadialBarChart
-                      innerRadius="72%"
-                      outerRadius="100%"
-                      data={[{ utilization, fill: "var(--chart-4)" }]}
-                      startAngle={90}
-                      endAngle={-270}
-                    >
-                      <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-                      <RadialBar dataKey="utilization" background cornerRadius={10} />
-                    </RadialBarChart>
-                  </ChartContainer>
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="font-display text-4xl font-semibold text-white">{utilization}%</span>
-                    <span className="text-xs text-white/70">Sold or unavailable</span>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-white/10 bg-[#0b0b0c] text-white lg:col-span-4">
-            <CardHeader>
-              <CardTitle className="font-display uppercase tracking-tight">Recent test drives</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {(analytics?.data?.recent || []).length === 0 ? (
-                <EmptyChart title="No test drives yet" />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-white/10 hover:bg-transparent">
-                      <TableHead className="text-white/70">Car</TableHead>
-                      <TableHead className="text-white/70">Customer</TableHead>
-                      <TableHead className="text-white/70">Booked</TableHead>
-                      <TableHead className="text-white/70">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {analytics.data.recent.map((row) => (
-                      <TableRow key={row.id} className="border-white/10">
-                        <TableCell className="max-w-[8rem] truncate font-medium text-white">{row.car}</TableCell>
-                        <TableCell className="max-w-[7rem] truncate text-white/80">{row.customer}</TableCell>
-                        <TableCell className="text-white/80">{row.date.slice(0, 10)}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            style={{ borderColor: STATUS_COLOR[row.status], color: STATUS_COLOR[row.status] }}
-                          >
-                            {row.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </TabsContent>
-
-      <TabsContent value="test-drives" className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {[
-            ["Total", testDrives.total, null],
-            ["Pending", testDrives.pending, "PENDING"],
-            ["Confirmed", testDrives.confirmed, "CONFIRMED"],
-            ["Completed", testDrives.completed, "COMPLETED"],
-            ["Cancelled", testDrives.cancelled, "CANCELLED"],
-          ].map(([label, value, status]) => (
-            <Card key={label} className="border-white/10 bg-[#0b0b0c] text-white">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-white/70">{label}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-semibold text-[#1a5cff]">{value}</div>
-                {status ? (
-                  <p className="text-xs text-white/70">{pct(value, testDrives.total)}% of bookings</p>
-                ) : null}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        <Card className="border-white/10 bg-[#0b0b0c] text-white">
-          <CardHeader>
-            <CardTitle className="font-display uppercase tracking-tight">Booking status</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-white/70">
-              Completion rate {pct(testDrives.completed, testDrives.total)}%. Conversion rate{" "}
-              {conversion == null ? "—" : `${conversion.toFixed(2)}%`} counts sold cars that have a completed
-              drive, divided by completed drives. It stays at or under 100% because each completed drive can
-              contribute at most one sold car.
-            </p>
-            {[
-              ["Pending", testDrives.pending, "PENDING"],
-              ["Confirmed", testDrives.confirmed, "CONFIRMED"],
-              ["Completed", testDrives.completed, "COMPLETED"],
-              ["Cancelled", testDrives.cancelled, "CANCELLED"],
-              ["No show", testDrives.noShow, "NO_SHOW"],
-            ].map(([label, value, status]) => (
-              <div key={status} className="space-y-2">
-                <div className="flex justify-between text-sm text-white">
-                  <span>{label}</span>
-                  <span>
-                    {value} ({pct(value, testDrives.total)}%)
+                <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/[0.04] pt-2 text-[13px]">
+                  <span className="text-[#A39A94]">
+                    {cars.available} available · {cars.sold} sold
                   </span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${testDrives.total ? (value / testDrives.total) * 100 : 0}%`,
-                      background: STATUS_COLOR[status],
-                    }}
+                  <DeltaMetric
+                    current={analytics?.success ? carsNow : null}
+                    previous={analytics?.success ? carsPrev : null}
                   />
                 </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </TabsContent>
-    </Tabs>
-  );
-}
+              </GlassCard>
+            </motion.div>
 
-function KpiCard({ className, title, icon: Icon, value, note, delta, spark }) {
-  return (
-    <Card className={`border-white/10 bg-[#0b0b0c] text-white ${className || ""}`}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-white/70">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-[#ff4d1a]" />
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-end justify-between gap-3">
-          <div className="text-3xl font-semibold tracking-tight text-white">{value}</div>
-          {spark}
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {delta}
-          <p className="text-xs text-white/70">{note}</p>
-        </div>
-      </CardContent>
-    </Card>
+            {/* Test Drives */}
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 12 },
+                visible: {
+                  opacity: 1,
+                  y: 0,
+                  transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+                },
+              }}
+            >
+              <GlassCard className="flex flex-col justify-between h-full">
+                <div>
+                  <p className="text-sm font-medium text-[#A39A94]">
+                    Test Drives
+                  </p>
+                  <p className="mt-2 text-[46px] sm:text-[48px] font-semibold leading-none tracking-tight text-[#F5F1EE]">
+                    <Metric value={testDrives.total} />
+                  </p>
+                </div>
+                <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/[0.04] pt-2 text-[13px]">
+                  <span className="text-[#A39A94]">
+                    {testDrives.pending} pending · {testDrives.confirmed} confirmed
+                  </span>
+                  <DeltaMetric
+                    current={drives?.success ? bookingsNow : null}
+                    previous={drives?.success ? bookingsPrev : null}
+                  />
+                </div>
+              </GlassCard>
+            </motion.div>
+
+            {/* Conversion Rate */}
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 12 },
+                visible: {
+                  opacity: 1,
+                  y: 0,
+                  transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+                },
+              }}
+            >
+              <GlassCard className="flex flex-col justify-between h-full">
+                <div>
+                  <p className="text-sm font-medium text-[#A39A94]">
+                    Conversion Rate
+                  </p>
+                  <p className="mt-2 text-[46px] sm:text-[48px] font-semibold leading-none tracking-tight text-[#F5F1EE]">
+                    {conversion == null ? (
+                      <span className="text-3xl text-[#6B625C]">—</span>
+                    ) : (
+                      <Metric value={conversion} decimals={1} suffix="%" />
+                    )}
+                  </p>
+                </div>
+                <div className="mt-2.5">
+                  <div className="flex items-center justify-between text-[13px] text-[#A39A94] mb-1.5">
+                    <span>Sold after completed drive</span>
+                    <span className="font-sans tabular-nums text-xs font-medium text-[#F5F1EE]">
+                      {conversion != null ? `${conversion.toFixed(1)}%` : "0%"}
+                    </span>
+                  </div>
+                  {/* Subtle Gradient Progress Bar */}
+                  <div className="h-1.5 w-full rounded-full bg-white/[0.06] overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700 ease-out"
+                      style={{
+                        width: `${conversion || 0}%`,
+                        background: "linear-gradient(90deg, #FF6A1F 0%, #F5A524 100%)",
+                      }}
+                    />
+                  </div>
+                </div>
+              </GlassCard>
+            </motion.div>
+
+            {/* Cars Sold */}
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: 12 },
+                visible: {
+                  opacity: 1,
+                  y: 0,
+                  transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+                },
+              }}
+            >
+              <GlassCard className="flex flex-col justify-between h-full">
+                <div>
+                  <p className="text-sm font-medium text-[#A39A94]">
+                    Cars Sold
+                  </p>
+                  <p className="mt-2 text-[46px] sm:text-[48px] font-semibold leading-none tracking-tight text-[#F5F1EE]">
+                    <Metric value={cars.sold} />
+                  </p>
+                </div>
+                <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/[0.04] pt-2 text-[13px]">
+                  <span className="text-[#A39A94]">
+                    {pct(cars.sold, cars.total)}% of inventory
+                  </span>
+                  <span className="text-xs text-[#6B625C]">Overall</span>
+                </div>
+              </GlassCard>
+            </motion.div>
+          </div>
+
+          {/* ROW 2: TEST DRIVES OVER TIME (8 COLS) + INVENTORY STATUS (4 COLS) */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+            {/* Test Drives Over Time (8 cols) - Elevated Hero Chart Card */}
+            <motion.div
+              className="lg:col-span-8"
+              variants={{
+                hidden: { opacity: 0, y: 12 },
+                visible: {
+                  opacity: 1,
+                  y: 0,
+                  transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+                },
+              }}
+            >
+              <GlassCard hero className="h-full flex flex-col justify-between">
+                {/* Header with Title + 7d/30d/90d Segmented Controls */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-4">
+                  <div>
+                    <h2 className="text-base font-semibold text-[#F5F1EE]">
+                      Test Drives Over Time
+                    </h2>
+                    <p className="text-xs text-[#A39A94] mt-0.5">
+                      Daily bookings and completed showroom drives
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    {/* Series Legend */}
+                    <div className="hidden sm:flex items-center gap-3 text-xs">
+                      <span className="flex items-center gap-1.5 text-[#A39A94]">
+                        <span className="h-2 w-2 rounded-full bg-[#FF6A1F]" />
+                        Booked
+                      </span>
+                      <span className="flex items-center gap-1.5 text-[#A39A94]">
+                        <span className="h-2 w-2 rounded-full bg-[#F5F1EE]" />
+                        Completed
+                      </span>
+                    </div>
+
+                    {/* Range Pill Selector */}
+                    <SegmentedControl
+                      items={RANGES}
+                      value={range}
+                      onChange={(val) => setRange(Number(val))}
+                    />
+                  </div>
+                </div>
+
+                {/* Area Chart Content */}
+                <div className="mt-2 min-h-[280px] w-full">
+                  {drivesEmpty ? (
+                    <EmptyChartState
+                      title="No test drives in this range"
+                      subtitle="There were no appointments recorded for this timeframe."
+                      actionLabel={range !== 90 ? "View last 90 days" : null}
+                      onAction={range !== 90 ? () => setRange(90) : null}
+                    />
+                  ) : (
+                    <div className="h-[280px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart
+                          data={windowed}
+                          margin={{ top: 12, right: 6, left: -20, bottom: 0 }}
+                        >
+                          <defs>
+                            {/* Booked Gradient Fill (30% to transparent) */}
+                            <linearGradient
+                              id="bookedGradient"
+                              x1="0"
+                              y1="0"
+                              x2="0"
+                              y2="1"
+                            >
+                              <stop
+                                offset="0%"
+                                stopColor="#FF6A1F"
+                                stopOpacity={0.3}
+                              />
+                              <stop
+                                offset="100%"
+                                stopColor="#FF6A1F"
+                                stopOpacity={0}
+                              />
+                            </linearGradient>
+
+                            {/* Completed Gradient Fill (15% to transparent) */}
+                            <linearGradient
+                              id="completedGradient"
+                              x1="0"
+                              y1="0"
+                              x2="0"
+                              y2="1"
+                            >
+                              <stop
+                                offset="0%"
+                                stopColor="#F5F1EE"
+                                stopOpacity={0.18}
+                              />
+                              <stop
+                                offset="100%"
+                                stopColor="#F5F1EE"
+                                stopOpacity={0}
+                              />
+                            </linearGradient>
+                          </defs>
+
+                          {/* Dashed Horizontal Gridlines only at 6% Opacity */}
+                          <CartesianGrid
+                            vertical={false}
+                            stroke="rgba(255, 255, 255, 0.06)"
+                            strokeDasharray="4 4"
+                          />
+
+                          <XAxis
+                            dataKey="date"
+                            tickLine={false}
+                            axisLine={false}
+                            tick={{ fill: "#6B625C", fontSize: 11 }}
+                            minTickGap={28}
+                            tickFormatter={(str) => {
+                              try {
+                                const parts = str.split("-");
+                                return `${parts[1]}/${parts[2]}`;
+                              } catch {
+                                return str;
+                              }
+                            }}
+                          />
+
+                          <YAxis
+                            allowDecimals={false}
+                            tickLine={false}
+                            axisLine={false}
+                            tick={{ fill: "#6B625C", fontSize: 11 }}
+                          />
+
+                          <Tooltip content={<AdminChartTooltip />} />
+
+                          {/* Completed Series: Soft White Line */}
+                          <Area
+                            type="monotone"
+                            dataKey="completed"
+                            name="Completed"
+                            stroke="#F5F1EE"
+                            strokeWidth={1.75}
+                            fill="url(#completedGradient)"
+                            dot={false}
+                            isAnimationActive={false}
+                            activeDot={{
+                              r: 4,
+                              fill: "#F5F1EE",
+                              stroke: "#14100E",
+                              strokeWidth: 2,
+                            }}
+                          />
+
+                          {/* Booked Series: Accent Orange Line */}
+                          <Area
+                            type="monotone"
+                            dataKey="booked"
+                            name="Booked"
+                            stroke="#FF6A1F"
+                            strokeWidth={2}
+                            fill="url(#bookedGradient)"
+                            dot={false}
+                            isAnimationActive={false}
+                            activeDot={{
+                              r: 4,
+                              fill: "#FF6A1F",
+                              stroke: "#14100E",
+                              strokeWidth: 2,
+                            }}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+              </GlassCard>
+            </motion.div>
+
+            {/* Inventory Status (4 cols) - Thinner Donut with Semantic Palette */}
+            <motion.div
+              className="lg:col-span-4"
+              variants={{
+                hidden: { opacity: 0, y: 12 },
+                visible: {
+                  opacity: 1,
+                  y: 0,
+                  transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+                },
+              }}
+            >
+              <GlassCard className="h-full flex flex-col justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-[#F5F1EE]">
+                    Inventory Status
+                  </h2>
+                  <p className="text-xs text-[#A39A94] mt-0.5">
+                    Vehicle distribution by state
+                  </p>
+                </div>
+
+                <div className="relative my-auto py-2">
+                  {statusData.length === 0 ||
+                  statusData.every((row) => row.value === 0) ? (
+                    <EmptyChartState title="No cars in showroom" />
+                  ) : (
+                    <>
+                      <div className="h-[200px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Tooltip content={<AdminChartTooltip />} />
+                            <Pie
+                              data={statusData}
+                              cx="50%"
+                              cy="50%"
+                              dataKey="value"
+                              nameKey="label"
+                              innerRadius={58}
+                              outerRadius={74}
+                              paddingAngle={4}
+                              stroke="transparent"
+                              cornerRadius={4}
+                              isAnimationActive={false}
+                            >
+                              {statusData.map((row) => (
+                                <Cell key={row.name} fill={row.color} />
+                              ))}
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      {/* Center Confident Numeral & Caption */}
+                      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="font-sans text-[34px] font-semibold tracking-tight tabular-nums text-[#F5F1EE]">
+                          {cars.total}
+                        </span>
+                        <span className="text-[11px] uppercase tracking-wider text-[#6B625C]">
+                          cars
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Structured Semantic Legend */}
+                <div className="mt-2 divide-y divide-white/[0.04] border-t border-white/[0.06] pt-2">
+                  {statusData.map((row) => (
+                    <div
+                      key={row.name}
+                      className="flex items-center justify-between py-1.5 text-xs"
+                    >
+                      <span className="flex items-center gap-2 text-[#A39A94]">
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: row.color }}
+                        />
+                        {row.label}
+                      </span>
+                      <span className="font-sans tabular-nums font-medium text-[#F5F1EE]">
+                        {row.value}{" "}
+                        <span className="text-[#6B625C]">
+                          ({pct(row.value, cars.total)}%)
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+            </motion.div>
+          </div>
+
+          {/* ROW 3: INVENTORY BY MAKE (5 COLS) + UTILIZATION (3 COLS) + RECENT TEST DRIVES (4 COLS) */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+            {/* Inventory by Make (5 cols) - Horizontal Bars */}
+            <motion.div
+              className="lg:col-span-5"
+              variants={{
+                hidden: { opacity: 0, y: 12 },
+                visible: {
+                  opacity: 1,
+                  y: 0,
+                  transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+                },
+              }}
+            >
+              <GlassCard className="h-full flex flex-col justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-[#F5F1EE]">
+                    Inventory by Make
+                  </h2>
+                  <p className="text-xs text-[#A39A94] mt-0.5">
+                    Top manufacturers represented
+                  </p>
+                </div>
+
+                <div className="mt-5 space-y-3">
+                  {barData.length === 0 ? (
+                    <EmptyChartState title="No vehicle inventory recorded" />
+                  ) : (
+                    barData.map((row) => (
+                      <div key={row.name} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-medium text-[#F5F1EE]">
+                            {row.name}
+                          </span>
+                          <span className="font-sans tabular-nums text-xs text-[#A39A94]">
+                            {row.count} {row.count === 1 ? "car" : "cars"}
+                          </span>
+                        </div>
+                        {/* Horizontal Bar with Accent Hue Opacity */}
+                        <div className="h-2 w-full rounded-full bg-white/[0.04] overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-700 ease-out"
+                            style={{
+                              width: `${row.percentage}%`,
+                              backgroundColor: `rgba(255, 106, 31, ${row.opacity})`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <p className="mt-4 pt-3 border-t border-white/[0.04] text-[11px] text-[#6B625C] text-right">
+                  Sorted by volume
+                </p>
+              </GlassCard>
+            </motion.div>
+
+            {/* Utilization (3 cols) - Radial Gauge with Gradient Arc */}
+            <motion.div
+              className="lg:col-span-3"
+              variants={{
+                hidden: { opacity: 0, y: 12 },
+                visible: {
+                  opacity: 1,
+                  y: 0,
+                  transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+                },
+              }}
+            >
+              <GlassCard className="h-full flex flex-col justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-[#F5F1EE]">
+                    Utilization
+                  </h2>
+                  <p className="text-xs text-[#A39A94] mt-0.5">
+                    Portfolio deployment
+                  </p>
+                </div>
+
+                <div className="relative my-auto py-2">
+                  {cars.total === 0 ? (
+                    <EmptyChartState title="No inventory to calculate" />
+                  ) : (
+                    <>
+                      <div className="h-[180px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RadialBarChart
+                            cx="50%"
+                            cy="50%"
+                            innerRadius="74%"
+                            outerRadius="100%"
+                            data={[{ utilization, fill: "#FF6A1F" }]}
+                            startAngle={90}
+                            endAngle={-270}
+                          >
+                            <PolarAngleAxis
+                              type="number"
+                              domain={[0, 100]}
+                              tick={false}
+                            />
+                            <RadialBar
+                              dataKey="utilization"
+                              background={{ fill: "rgba(255, 255, 255, 0.06)" }}
+                              cornerRadius={10}
+                              isAnimationActive={false}
+                            />
+                          </RadialBarChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      {/* Centered Numeral */}
+                      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="font-sans tabular-nums text-[34px] font-semibold tracking-tight text-[#F5F1EE]">
+                          {utilization}%
+                        </span>
+                        <span className="text-[11px] text-[#A39A94]">
+                          Sold or unavailable
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Footnote Formula */}
+                <p className="mt-2 text-center text-[11px] text-[#6B625C] border-t border-white/[0.04] pt-2">
+                  (Sold + Unavailable) / Total inventory
+                </p>
+              </GlassCard>
+            </motion.div>
+
+            {/* Recent Test Drives (4 cols) - Clean Table with View All link */}
+            <motion.div
+              className="lg:col-span-4"
+              variants={{
+                hidden: { opacity: 0, y: 12 },
+                visible: {
+                  opacity: 1,
+                  y: 0,
+                  transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+                },
+              }}
+            >
+              <GlassCard className="h-full flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base font-semibold text-[#F5F1EE]">
+                      Recent Test Drives
+                    </h2>
+                    <p className="text-xs text-[#A39A94] mt-0.5">
+                      Latest bookings activity
+                    </p>
+                  </div>
+                  <Link
+                    href="/admin/test-drives"
+                    className="text-xs font-medium text-[#FF6A1F] hover:underline transition-colors"
+                  >
+                    View all
+                  </Link>
+                </div>
+
+                <div className="mt-4 divide-y divide-white/[0.06]">
+                  {(analytics?.data?.recent || []).length === 0 ? (
+                    <EmptyChartState title="No bookings recorded yet" />
+                  ) : (
+                    (analytics.data.recent.slice(0, 5)).map((row) => (
+                      <div
+                        key={row.id}
+                        className="flex h-14 items-center justify-between gap-3 px-1 hover:bg-white/[0.02] transition-colors rounded-lg"
+                      >
+                        {/* Customer Avatar Initial + Car / Name Details */}
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/[0.1] bg-white/[0.04] text-[10px] font-semibold text-[#F5F1EE]">
+                            {getInitials(row.customer)}
+                          </div>
+                          <div className="min-w-0">
+                            <p
+                              title={row.car}
+                              className="truncate text-xs font-medium text-[#F5F1EE]"
+                            >
+                              {row.car}
+                            </p>
+                            <p className="truncate text-[11px] text-[#A39A94]">
+                              {row.customer}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Status Chip + Right-Aligned Date */}
+                        <div className="flex shrink-0 items-center gap-3 text-right">
+                          <StatusChip status={row.status} />
+                          <span className="hidden font-sans tabular-nums text-[11px] text-[#6B625C] sm:inline">
+                            {formatDate(row.date)}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="mt-2 text-right">
+                  <span className="text-[11px] text-[#6B625C]">
+                    Showing latest 5 appointments
+                  </span>
+                </div>
+              </GlassCard>
+            </motion.div>
+          </div>
+        </motion.div>
+      ) : (
+        /* TEST DRIVES SUB-VIEW */
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: "easeOut" }}
+          className="space-y-5"
+        >
+          {/* Status Breakdown KPI Cards */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            {[
+              { label: "Total Bookings", value: testDrives.total, status: null },
+              { label: "Pending", value: testDrives.pending, status: "PENDING" },
+              { label: "Confirmed", value: testDrives.confirmed, status: "CONFIRMED" },
+              { label: "Completed", value: testDrives.completed, status: "COMPLETED" },
+              { label: "Cancelled", value: testDrives.cancelled, status: "CANCELLED" },
+            ].map((kpi) => (
+              <GlassCard key={kpi.label} className="p-5">
+                <p className="text-xs font-medium text-[#A39A94]">{kpi.label}</p>
+                <p className="mt-2 text-3xl font-semibold tracking-tight text-[#F5F1EE] font-sans tabular-nums">
+                  <Metric value={kpi.value} />
+                </p>
+                <div className="mt-3">
+                  {kpi.status ? (
+                    <StatusChip
+                      status={kpi.status}
+                      label={`${pct(kpi.value, testDrives.total)}% of total`}
+                    />
+                  ) : (
+                    <span className="text-xs text-[#6B625C]">All-time</span>
+                  )}
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+
+          {/* Deep-Dive Conversion & Completion Card */}
+          <GlassCard className="space-y-6">
+            <div>
+              <h2 className="text-base font-semibold text-[#F5F1EE]">
+                Booking Pipeline Distribution
+              </h2>
+              <p className="text-xs text-[#A39A94] mt-1 max-w-2xl leading-relaxed">
+                Overall completion rate stands at{" "}
+                <span className="text-[#F5F1EE] font-medium">
+                  {pct(testDrives.completed, testDrives.total)}%
+                </span>
+                . Conversion rate counts sold cars that had a completed drive,
+                divided by total completed drives.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                { label: "Pending", count: testDrives.pending, status: "PENDING", color: "#F5A524" },
+                { label: "Confirmed", count: testDrives.confirmed, status: "CONFIRMED", color: "#4ADE80" },
+                { label: "Completed", count: testDrives.completed, status: "COMPLETED", color: "#60A5FA" },
+                { label: "Cancelled", count: testDrives.cancelled, status: "CANCELLED", color: "#F87171" },
+                { label: "No Show", count: testDrives.noShow, status: "NO_SHOW", color: "#6B625C" },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4"
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-[#F5F1EE]">{item.label}</span>
+                    <span className="font-sans tabular-nums text-[#A39A94]">
+                      {item.count} ({pct(item.count, testDrives.total)}%)
+                    </span>
+                  </div>
+                  <div className="mt-2.5 h-1.5 w-full rounded-full bg-white/[0.06] overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${testDrives.total ? (item.count / testDrives.total) * 100 : 0}%`,
+                        backgroundColor: item.color,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
+        </motion.div>
+      )}
+    </div>
   );
 }

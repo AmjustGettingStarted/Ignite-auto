@@ -18,7 +18,7 @@ const aj = arcjet({
       mode: "LIVE",
     }),
     detectBot({
-      mode: "LIVE", // will block requests. Use "DRY_RUN" to log only
+      mode: process.env.NODE_ENV === "production" ? "LIVE" : "DRY_RUN", // will block requests in prod, log in dev
       allow: [
         "CATEGORY:SEARCH_ENGINE", // Google, Bing, etc
         // See the full list at https://arcjet.com/bot-list
@@ -35,7 +35,11 @@ const handler = clerkMiddleware(async (auth, req) => {
     return NextResponse.next();
   }
 
-  if (process.env.ARCJET_KEY) {
+  const isDevPreview =
+    process.env.NODE_ENV !== "production" &&
+    req.cookies.get("admin_preview")?.value === "1";
+
+  if (!isDevPreview && process.env.ARCJET_KEY) {
     const decision = await aj.protect(req);
     if (decision.isDenied()) {
       if (decision.reason.isRateLimit()) {
@@ -53,7 +57,7 @@ const handler = clerkMiddleware(async (auth, req) => {
 
   const { userId } = await auth();
 
-  if (!userId && isProtectedRoute(req)) {
+  if (!userId && isProtectedRoute(req) && !isDevPreview) {
     const { redirectToSignIn } = await auth();
     return redirectToSignIn();
   }
