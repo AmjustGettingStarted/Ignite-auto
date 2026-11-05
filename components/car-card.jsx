@@ -62,6 +62,7 @@ const CarCard = React.forwardRef(function CarCard(
           alt={`${car.make} ${car.model}`}
           sizes={sizes}
           priority={priority}
+          quality={90}
           className="h-full w-full scale-110 object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-115"
         />
 

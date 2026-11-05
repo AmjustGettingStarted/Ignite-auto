@@ -64,6 +64,7 @@ export default function GridCarCard({
                     alt={`${car.make} ${car.model}`}
                     sizes={sizes}
                     priority={priority}
+                    quality={90}
                     className="h-full w-full object-cover brightness-[1.05] saturate-[1.1] transition-transform duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.07]"
                 />
             </div>

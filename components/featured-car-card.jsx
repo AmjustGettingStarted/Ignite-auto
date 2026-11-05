@@ -62,10 +62,14 @@ const FeaturedCarCard = React.forwardRef(function FeaturedCarCard(
 
                 {/* Full-bleed image */}
                 <motion.div style={{ scale: imgScale }} className="absolute inset-0 z-0">
-                    <img
+                    <CarImage
                         src={image}
                         alt={`${car.make} ${car.model}`}
-                        className="absolute inset-0 h-full w-full object-cover"
+                        sizes="100vw"
+                        priority={priority}
+                        quality={90}
+                        loading={priority ? undefined : "eager"}
+                        className="h-full w-full object-cover"
                     />
                 </motion.div>
 

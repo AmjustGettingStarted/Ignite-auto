@@ -246,6 +246,8 @@ const CarsList = () => {
                                 alt={`${car.make} ${car.model}`}
                                 fill
                                 sizes="96px"
+                                quality={85}
+                                decoding="async"
                                 className="object-contain"
                               />
                             ) : (

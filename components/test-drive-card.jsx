@@ -78,6 +78,8 @@ const TestDriveCard = ({
                   alt={`${booking.car.make} ${booking.car.model}`}
                   fill
                   sizes="(min-width: 640px) 25vw, 100vw"
+                  quality={90}
+                  decoding="async"
                   className="object-contain"
                 />
               </div>

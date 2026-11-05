@@ -201,7 +201,9 @@ function CoverCard({ type, index, count, active, step, onSelect }) {
         src={type.image}
         alt={type.name}
         fill
-        sizes="320px"
+        sizes="(min-width: 1024px) 600px, 400px"
+        quality={90}
+        decoding="async"
         className="pointer-events-none object-cover object-center select-none"
         priority={index <= 4}
       />
