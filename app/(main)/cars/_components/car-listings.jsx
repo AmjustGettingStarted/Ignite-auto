@@ -80,7 +80,6 @@ const CarListings = () => {
   }
 
   // Handle error
-  // if (error || (result && !result.success)) {
   if (error || (!result && !result?.success)) {
     return (
       <Alert variant="destructive">
@@ -193,25 +192,27 @@ const CarListings = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <p className="text-sm text-white/60">
           Showing{" "}
-          <span className="font-medium">
+          <span className="font-medium text-white">
             {(page - 1) * limit + 1}-{Math.min(page * limit, pagination.total)}
-          </span>
-          of <span className="font-medium">{pagination.total}</span> cars
+          </span>{" "}
+          of <span className="font-medium text-white">{pagination.total}</span>{" "}
+          cars
         </p>
       </div>
 
-      {/* Car grid */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {cars.map((car) => (
-          <div key={car.id} className="h-[32rem]">
-            <PremiumCarCard
-              car={car}
-              sizes="(min-width: 768px) 40vw, 100vw"
-            />
-          </div>
+      {/* Full-bleed car grid */}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        {cars.map((car, index) => (
+          <PremiumCarCard
+            key={car.id}
+            car={car}
+            index={index}
+            priority={index < 2}
+            sizes="(min-width: 768px) 45vw, 100vw"
+          />
         ))}
       </div>
 
